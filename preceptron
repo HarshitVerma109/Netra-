@@ -1,0 +1,82 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.datasets import make_blobs
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+n_samples = 500
+centers = [(-2, -2), (2, 2)]
+X, y = make_blobs(n_samples=n_samples, centers=centers, n_features=2, cluster_std=1.0, random_state=42)
+print("X shape:", X.shape)
+print("y shape:", y.shape)
+
+plt.figure(figsize=(6, 5))
+plt.scatter(X[:, 0], X[:, 1], c=y, cmap="bwr", edgecolor="k")
+plt.title("2D Linearly Separable Data")
+plt.xlabel("Feature 1")
+plt.ylabel("Feature 2")
+plt.grid(True)
+plt.show()
+
+X_tensor = torch.from_numpy(X).float()
+y_tensor = torch.from_numpy(y).float().view(-1, 1)
+print(X_tensor.shape, y_tensor.shape)
+
+class Perceptron(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.linear = nn.Linear(in_features=2, out_features=1)
+    def forward(self, x):
+        logits = self.linear(x)
+        probs = torch.sigmoid(logits)
+        return probs
+
+model = Perceptron()
+print(model)
+
+criterion = nn.BCELoss()
+optimizer = optim.SGD(model.parameters(), lr=0.1)
+
+num_epochs = 100
+loss_history = []
+for epoch in range(num_epochs):
+    y_pred = model(X_tensor)
+    loss = criterion(y_pred, y_tensor)
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+    loss_history.append(loss.item())
+    if (epoch + 1) % 10 == 0:
+        with torch.no_grad():
+            preds = (y_pred >= 0.5).float()
+            accuracy = (preds.eq(y_tensor).sum().item()) / len(y_tensor)
+        print(f"Epoch [{epoch+1:3d}/{num_epochs}]  Loss: {loss.item():.4f}  Acc: {accuracy:.3f}")
+
+plt.figure(figsize=(6, 4))
+plt.plot(loss_history)
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.title("Training Loss of Single-Layer Perceptron")
+plt.grid(True)
+plt.show()
+
+x_min, x_max = X[:, 0].min() - 1, X[:, 0].max() + 1
+y_min, y_max = X[:, 1].min() - 1, X[:, 1].max() + 1
+xx, yy = np.meshgrid(np.linspace(x_min, x_max, 200), np.linspace(y_min, y_max, 200))
+grid = np.c_[xx.ravel(), yy.ravel()]
+grid_tensor = torch.from_numpy(grid).float()
+with torch.no_grad():
+    probs_grid = model(grid_tensor).numpy().reshape(xx.shape)
+plt.figure(figsize=(6, 5))
+contour = plt.contour(xx, yy, probs_grid, levels=[0.5], linewidths=2, colors="k")
+plt.clabel(contour, fmt={0.5: "decision boundary"}, inline=True, fontsize=8)
+plt.scatter(X[:, 0], X[:, 1], c=y, cmap="bwr", edgecolor="k", alpha=0.8)
+plt.title("Perceptron Decision Boundary")
+plt.xlabel("Feature 1")
+plt.ylabel("Feature 2")
+plt.grid(True)
+plt.show()
+
+for name, param in model.named_parameters():
+    print(name, param.data.numpy())
